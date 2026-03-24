@@ -1,10 +1,21 @@
 import express, {Request, Response} from "express"
 import cors from "cors"
+import dotenv from "dotenv"
+import database from "./database/configdb.js"
 
+dotenv.config();
+
+// App
 const app = express();
-app.use(express.json());
 
+// Database
+database.connect();
+
+app.use(express.json());
 app.use(cors());
+
+/** routes **/ 
+
 
 app.get("/", (req: Request, res: Response) => {
     res.send({message: "App Working"});
