@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx watch api/index.ts",
     "start": "node api/index.ts",
+    "start:database": "docker compose up -d",
     "generate-secret-key": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     "tests": "echo 'No tests to run'"
   },
