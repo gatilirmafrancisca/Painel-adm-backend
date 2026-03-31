@@ -2,6 +2,7 @@ import express, {Request, Response} from "express"
 import cors from "cors"
 import dotenv from "dotenv"
 import database from "./database/configdb.js"
+import userRoute from "./routes/user.route.js";
 
 dotenv.config();
 
@@ -16,10 +17,7 @@ app.use(cors());
 
 /** routes **/ 
 
-
-app.get("/", (req: Request, res: Response) => {
-    res.send({message: "App Working"});
-});
+app.use("/", userRoute);
 
 app.use((req: Request, res: Response) => {
     res.status(404).json({ message: `Cannot ${req.method} ${req.path}` });
