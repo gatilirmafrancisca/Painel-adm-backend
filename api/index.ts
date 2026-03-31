@@ -4,6 +4,7 @@ import dotenv from "dotenv"
 import database from "./database/configdb.js"
 import userRoute from "./routes/user.route.js";
 import protectedRoute from "./routes/protected.route.js";
+import { errorHandler } from "./middlewares/errors.middleware.js";
 
 dotenv.config();
 
@@ -28,6 +29,8 @@ app.get("/", (req: Request, res: Response) => {
 app.use((req: Request, res: Response) => {
     res.status(404).json({ message: `Cannot ${req.method} ${req.path}` });
 });
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
