@@ -36,7 +36,7 @@ const GatoSchema: Schema<IGato> = new mongoose.Schema({
     status: { type: String, enum: EnumGatos.STATUSTYPES, required: true },
     imagemUrl: { type: String, required: true }
     
-});
+}, {timestamps : true});
 
 const Gato: Model<IGato> = model("Gato", GatoSchema);
 export default Gato;

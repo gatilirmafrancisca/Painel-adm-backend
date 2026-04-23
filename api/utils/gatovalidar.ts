@@ -10,6 +10,95 @@ export const normalizarPersonalidades = (personalidade: any): CatTypes.Personali
     return arr as CatTypes.PersonalidadeType[];
 };
 
+const parseBooleanQuery = (value: any): boolean | undefined => {
+    if (typeof value === "boolean") return value;
+    if (typeof value !== "string") return undefined;
+
+    const normalized = value.trim().toLowerCase();
+
+    if (["true", "1", "sim"].includes(normalized)) return true;
+    if (["false", "0", "nao", "não"].includes(normalized)) return false;
+
+    return undefined;
+};
+
+export const montarFiltrosGato = (query: any): Record<string, any> => {
+    const filters: Record<string, any> = {};
+
+    if (!query) return filters;
+
+    if (query.nome) {
+        filters.nome = { $regex: String(query.nome).trim(), $options: "i" };
+    }
+
+    if (query.idade !== undefined && query.idade !== "") {
+        const idade = Number(query.idade);
+        if (!Number.isNaN(idade)) filters.idade = idade;
+    }
+
+    if (query.sexo && CatTypes.SEXOTYPES.includes(query.sexo as CatTypes.SexoType)) {
+        filters.sexo = query.sexo;
+    }
+
+    if (query.cor && CatTypes.CORTYPES.includes(query.cor as CatTypes.CorType)) {
+        filters.cor = query.cor;
+    }
+
+    if (query.castrado !== undefined) {
+        const castrado = parseBooleanQuery(query.castrado);
+        if (castrado !== undefined) filters.castrado = castrado;
+    }
+
+    if (query.vacinado !== undefined) {
+        const vacinado = parseBooleanQuery(query.vacinado);
+        if (vacinado !== undefined) filters.vacinado = vacinado;
+    }
+
+    if (query.vermifugado !== undefined) {
+        const vermifugado = parseBooleanQuery(query.vermifugado);
+        if (vermifugado !== undefined) filters.vermifugado = vermifugado;
+    }
+
+    if (query.fivFelv && CatTypes.FIVFELVTYPES.includes(query.fivFelv as CatTypes.FivFeLVType)) {
+        filters.fivFelv = query.fivFelv;
+    }
+
+    if (query.personalidade) {
+        const fonte = Array.isArray(query.personalidade)
+            ? query.personalidade
+            : String(query.personalidade)
+                .split(",")
+                .map((p) => p.trim())
+                .filter((p) => p.length > 0);
+
+        const personalidades = normalizarPersonalidades(fonte)
+            .filter((p) => CatTypes.PERSONALIDADETYPES.includes(p as CatTypes.PersonalidadeType));
+
+        if (personalidades.length > 0) {
+            filters.personalidade = { $all: personalidades };
+        }
+    }
+
+    if (query.necessidadesEspeciais !== undefined) {
+        const necessidadesEspeciais = parseBooleanQuery(query.necessidadesEspeciais);
+        if (necessidadesEspeciais !== undefined) filters.necessidadesEspeciais = necessidadesEspeciais;
+    }
+
+    if (query.descricaoBio) {
+        filters.descricaoBio = { $regex: String(query.descricaoBio).trim(), $options: "i" };
+    }
+
+    if (query.status && CatTypes.STATUSTYPES.includes(query.status as CatTypes.StatusType)) {
+        filters.status = query.status;
+    }
+
+    if (query.imagemUrl) {
+        filters.imagemUrl = { $regex: String(query.imagemUrl).trim(), $options: "i" };
+    }
+
+    return filters;
+};
+
 export const validarParametros = async (data: IGato): Promise<any> => {
     const camposAusentes: string[] = [];
 
@@ -20,7 +109,6 @@ export const validarParametros = async (data: IGato): Promise<any> => {
     if (!data.fivFelv) camposAusentes.push("FIV/FeLV");
     if (!data.status) camposAusentes.push("Status");
     if (!data.descricaoBio) camposAusentes.push("Descrição Bio");
-    if (!data.imagemUrl) camposAusentes.push("URL da Imagem");
     if (!data.personalidade || data.personalidade.length === 0) camposAusentes.push("Personalidade");
 
     // Validação de presença (Números e Booleanos)
