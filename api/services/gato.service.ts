@@ -4,7 +4,7 @@ import { Types, Document } from "mongoose";
 import { Request } from "express";
 import { cloudinary } from '../database/configupload.js';
 import streamifier from 'streamifier';
-import { montarFiltrosGato, normalizarPersonalidades, validarParametros, validarParametrosPatch } from "../utils/gatovalidar.js";
+import { montarFiltrosGato, normalizarDadosGato, normalizarPersonalidades, validarParametros } from "../utils/gatovalidar.js";
 
 const localizarGato = async(id?: string, filters: any = {}) : Promise<(IGato & Document)[]> => {
     
@@ -46,13 +46,20 @@ export const criarGatoService = async (data: IGato, req: Request) : Promise<Resp
 
         if (!file) {return {status: 400, message: "A imagem é obrigatória."};}
 
-        await validarParametros({...data, personalidade: normalizarPersonalidades(data.personalidade)});
+        const dadosNormalizados = normalizarDadosGato(data);
 
-        const personalidades = normalizarPersonalidades(data.personalidade);
+        await validarParametros({
+          ...data,
+          ...dadosNormalizados,
+          personalidade: normalizarPersonalidades(dadosNormalizados.personalidade),
+        } as IGato);
+
+        const personalidades = normalizarPersonalidades(dadosNormalizados.personalidade);
         const result = await uploadFromBuffer(file);
 
         const dadosGato = new Gato({
           ...data,
+          ...dadosNormalizados,
           imagemUrl: result.secure_url,
           personalidade: personalidades
         });
@@ -90,4 +97,4 @@ export const listarGatosService = async (req: any): Promise<ResponseType> => {
         throw error;
 
     }
-  }
+}

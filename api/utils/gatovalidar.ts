@@ -4,11 +4,88 @@ import { MissingParamsError, InvalidEnumError } from "./errors.js";
 
 // Função para garantir que a personalidade seja sempre um array de strings limpas
 export const normalizarPersonalidades = (personalidade: any): CatTypes.PersonalidadeType[] => {
-    const arr = Array.isArray(personalidade)
-        ? personalidade.map(p => String(p).trim())
-        : [String(personalidade || "").trim()];
+    let arr: string[];
+
+    if (Array.isArray(personalidade)) {
+        arr = personalidade.map((p) => String(p).trim());
+    } else {
+        const raw = String(personalidade || "").trim();
+
+        if (raw.startsWith("[") && raw.endsWith("]")) {
+            try {
+                const parsed = JSON.parse(raw);
+                arr = Array.isArray(parsed)
+                    ? parsed.map((p) => String(p).trim())
+                    : [raw];
+            } catch {
+                arr = raw.split(",").map((p) => p.trim());
+            }
+        } else if (raw.includes(",")) {
+            arr = raw.split(",").map((p) => p.trim());
+        } else {
+            arr = [raw];
+        }
+    }
+
+    arr = arr.filter((p) => p.length > 0);
     return arr as CatTypes.PersonalidadeType[];
 };
+
+const parseBooleanFormValue = (value: any): boolean | undefined => {
+    if (typeof value === "boolean") return value;
+    if (typeof value !== "string") return undefined;
+
+    const normalized = value.trim().toLowerCase();
+
+    if (["true", "1", "sim"].includes(normalized)) return true;
+    if (["false", "0", "nao", "não"].includes(normalized)) return false;
+
+    return undefined;
+};
+
+const parseNumberFormValue = (value: any): number | undefined => {
+    if (typeof value === "number") return value;
+    if (typeof value !== "string") return undefined;
+
+    const normalized = value.trim();
+    if (normalized === "") return undefined;
+
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? undefined : parsed;
+};
+
+export const normalizarDadosGato = (data: Partial<IGato> & Record<string, any>): Partial<IGato> => {
+    const rawData = data as Record<string, any>;
+    const isMissingRawValue = (value: any): boolean => value === undefined || value === null || value === "";
+
+    const idadeConvertida = parseNumberFormValue(rawData.idade);
+    const castradoConvertido = parseBooleanFormValue(rawData.castrado);
+    const vacinadoConvertido = parseBooleanFormValue(rawData.vacinado);
+    const vermifugadoConvertido = parseBooleanFormValue(rawData.vermifugado);
+    const necessidadesConvertido = parseBooleanFormValue(rawData.necessidadesEspeciais);
+
+    return {
+        ...data,
+        idade: idadeConvertida !== undefined || isMissingRawValue(rawData.idade)
+            ? idadeConvertida
+            : rawData.idade,
+        castrado: castradoConvertido !== undefined || isMissingRawValue(rawData.castrado)
+            ? castradoConvertido
+            : rawData.castrado,
+        vacinado: vacinadoConvertido !== undefined || isMissingRawValue(rawData.vacinado)
+            ? vacinadoConvertido
+            : rawData.vacinado,
+        vermifugado: vermifugadoConvertido !== undefined || isMissingRawValue(rawData.vermifugado)
+            ? vermifugadoConvertido
+            : rawData.vermifugado,
+        necessidadesEspeciais: necessidadesConvertido !== undefined || isMissingRawValue(rawData.necessidadesEspeciais)
+            ? necessidadesConvertido
+            : rawData.necessidadesEspeciais,
+        personalidade: normalizarPersonalidades(data.personalidade),
+    };
+};
+
+const isEmptyValue = (value: unknown): boolean => value === undefined || value === null || value === "";
 
 const parseBooleanQuery = (value: any): boolean | undefined => {
     if (typeof value === "boolean") return value;
@@ -103,20 +180,18 @@ export const validarParametros = async (data: IGato): Promise<any> => {
     const camposAusentes: string[] = [];
 
     // Validação de presença (Strings e Arrays)
-    if (!data.nome) camposAusentes.push("Nome");
-    if (!data.sexo) camposAusentes.push("Sexo");
-    if (!data.cor) camposAusentes.push("Cor");
-    if (!data.fivFelv) camposAusentes.push("FIV/FeLV");
-    if (!data.status) camposAusentes.push("Status");
-    if (!data.descricaoBio) camposAusentes.push("Descrição Bio");
+    if (!String(data.nome || "").trim()) camposAusentes.push("Nome");
+    if (!String(data.sexo || "").trim()) camposAusentes.push("Sexo");
+    if (!String(data.cor || "").trim()) camposAusentes.push("Cor");
+    if (!String(data.fivFelv || "").trim()) camposAusentes.push("FIV/FeLV");
+    if (!String(data.status || "").trim()) camposAusentes.push("Status");
+    if (!String(data.descricaoBio || "").trim()) camposAusentes.push("Descrição Bio");
     if (!data.personalidade || data.personalidade.length === 0) camposAusentes.push("Personalidade");
-
-    // Validação de presença (Números e Booleanos)
-    if (data.idade === undefined || data.idade === null) camposAusentes.push("Idade");
-    if (data.castrado === undefined || data.castrado === null) camposAusentes.push("Castrado");
-    if (data.vacinado === undefined || data.vacinado === null) camposAusentes.push("Vacinado");
-    if (data.vermifugado === undefined || data.vermifugado === null) camposAusentes.push("Vermifugado");
-    if (data.necessidadesEspeciais === undefined || data.necessidadesEspeciais === null) camposAusentes.push("Necessidades Especiais");
+    if (isEmptyValue(data.idade)) camposAusentes.push("Idade");
+    if (isEmptyValue(data.castrado)) camposAusentes.push("Castrado");
+    if (isEmptyValue(data.vacinado)) camposAusentes.push("Vacinado");
+    if (isEmptyValue(data.vermifugado)) camposAusentes.push("Vermifugado");
+    if (isEmptyValue(data.necessidadesEspeciais)) camposAusentes.push("Necessidades Especiais");
 
     if (camposAusentes.length > 0) {
         throw new MissingParamsError(
@@ -145,78 +220,13 @@ export const validarParametros = async (data: IGato): Promise<any> => {
     if (personalidadesInvalidas.length > 0) {
         throw new InvalidEnumError(`Personalidade(s) inválida(s): ${personalidadesInvalidas.join(", ")}. Valores permitidos: ${CatTypes.PERSONALIDADETYPES.join(", ")}.`);
     }
-};
 
-export const validarParametrosPatch = async (data: Partial<IGato>): Promise<Partial<IGato>> => {
-    if (!data || Object.keys(data).length === 0) return data;
-
-    // Validação de Strings
-    if (data.nome !== undefined) {
-        data.nome = String(data.nome || "").trim();
-        if (!data.nome) throw new MissingParamsError("O nome não pode estar vazio.");
-    }
-
-    if (data.descricaoBio !== undefined) {
-        data.descricaoBio = String(data.descricaoBio || "").trim();
-        if (!data.descricaoBio) throw new MissingParamsError("A descrição não pode estar vazia.");
-    }
-
-    if (data.imagemUrl !== undefined) {
-        data.imagemUrl = String(data.imagemUrl || "").trim();
-        if (!data.imagemUrl) throw new MissingParamsError("A URL da imagem não pode estar vazia.");
-    }
-
-    // Validação de Número
+        // Validação de Número
     if (data.idade !== undefined) {
-        if (typeof data.idade !== 'number' || data.idade < 0) {
+        if (typeof data.idade !== 'number' || !Number.isInteger(data.idade) || data.idade < 0) {
             throw new MissingParamsError("A idade deve ser um número válido.");
         }
     }
-
-    // Validação de Enums
-    if (data.sexo !== undefined) {
-        if (String(data.sexo).trim() === "") throw new MissingParamsError("O sexo não pode estar vazio.");
-        if (!CatTypes.SEXOTYPES.includes(data.sexo as any)) {
-            throw new InvalidEnumError(`Sexo inválido '${data.sexo}'. Valores permitidos: ${CatTypes.SEXOTYPES.join(", ")}.`);
-        }
-    }
-
-    if (data.cor !== undefined) {
-        if (String(data.cor).trim() === "") throw new MissingParamsError("A cor não pode estar vazia.");
-        if (!CatTypes.CORTYPES.includes(data.cor as any)) {
-            throw new InvalidEnumError(`Cor inválida '${data.cor}'. Valores permitidos: ${CatTypes.CORTYPES.join(", ")}.`);
-        }
-    }
-
-    if (data.fivFelv !== undefined) {
-        if (String(data.fivFelv).trim() === "") throw new MissingParamsError("O FIV/FeLV não pode estar vazio.");
-        if (!CatTypes.FIVFELVTYPES.includes(data.fivFelv as any)) {
-            throw new InvalidEnumError(`FIV/FeLV inválido '${data.fivFelv}'. Valores permitidos: ${CatTypes.FIVFELVTYPES.join(", ")}.`);
-        }
-    }
-
-    if (data.status !== undefined) {
-        if (String(data.status).trim() === "") throw new MissingParamsError("O status não pode estar vazio.");
-        if (!CatTypes.STATUSTYPES.includes(data.status as any)) {
-            throw new InvalidEnumError(`Status inválido '${data.status}'. Valores permitidos: ${CatTypes.STATUSTYPES.join(", ")}.`);
-        }
-    }
-
-    // Validação de Array de Enums
-    if (data.personalidade !== undefined) {
-        const personalidades = normalizarPersonalidades(data.personalidade);
-        if (personalidades.length === 0 || personalidades.every(p => String(p).trim() === "")) {
-            throw new MissingParamsError("A personalidade não pode estar vazia.");
-        }
-
-        const personalidadesInvalidas = personalidades.filter(p => !CatTypes.PERSONALIDADETYPES.includes(p as CatTypes.PersonalidadeType));
-        if (personalidadesInvalidas.length > 0) {
-            throw new InvalidEnumError(`Personalidade(s) inválida(s): ${personalidadesInvalidas.join(", ")}. Valores permitidos: ${CatTypes.PERSONALIDADETYPES.join(", ")}.`);
-        }
-
-        data.personalidade = personalidades as IGato["personalidade"];
-    }
-
     // Validação de Booleanos (Apenas garantindo o tipo)
     if (data.castrado !== undefined && typeof data.castrado !== "boolean") {
         throw new MissingParamsError("O campo 'castrado' deve ser um booleano (true ou false).");
@@ -230,6 +240,4 @@ export const validarParametrosPatch = async (data: Partial<IGato>): Promise<Part
     if (data.necessidadesEspeciais !== undefined && typeof data.necessidadesEspeciais !== "boolean") {
         throw new MissingParamsError("O campo 'necessidadesEspeciais' deve ser um booleano (true ou false).");
     }
-
-    return data;
 };
