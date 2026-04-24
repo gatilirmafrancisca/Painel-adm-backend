@@ -1,5 +1,5 @@
 import mongoose, { Schema, model, Model, mongo } from "mongoose";
-import * as EnumGatos from "../types/cats.types";
+import * as EnumGatos from "../types/cats.types.js";
 
 export interface IGato {
     nome: String;
