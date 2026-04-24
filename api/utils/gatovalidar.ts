@@ -2,6 +2,43 @@ import { IGato } from "../models/Gato.js";
 import * as CatTypes from "../types/cats.types.js";
 import { MissingParamsError, InvalidEnumError } from "./errors.js";
 
+const hasOwnField = (obj: Record<string, any>, key: string): boolean => Object.prototype.hasOwnProperty.call(obj, key);
+const isEmptyValue = (value: unknown): boolean => value === undefined || value === null || value === "";
+
+const validateStringField = (value: unknown, fieldLabel: string): string => {
+    const normalized = String(value ?? "").trim();
+    if (!normalized) {
+        throw new MissingParamsError(`O campo '${fieldLabel}' não pode estar vazio.`);
+    }
+    return normalized;
+};
+
+const validateIntegerField = (value: unknown, fieldLabel: string): number => {
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+        throw new MissingParamsError(`O campo '${fieldLabel}' deve ser um número inteiro válido.`);
+    }
+    return value;
+};
+
+const validateBooleanField = (value: unknown, fieldLabel: string): boolean => {
+    if (typeof value !== "boolean") {
+        throw new MissingParamsError(`O campo '${fieldLabel}' deve ser um booleano (true ou false).`);
+    }
+    return value;
+};
+
+const validateEnumField = <T extends readonly string[]>(
+    value: unknown,
+    fieldLabel: string,
+    allowedValues: T,
+): T[number] => {
+    const normalized = validateStringField(value, fieldLabel);
+    if (!allowedValues.includes(normalized)) {
+        throw new InvalidEnumError(`${fieldLabel} inválido '${normalized}'. Valores permitidos: ${allowedValues.join(", ")}.`);
+    }
+    return normalized as T[number];
+};
+
 // Função para garantir que a personalidade seja sempre um array de strings limpas
 export const normalizarPersonalidades = (personalidade: any): CatTypes.PersonalidadeType[] => {
     let arr: string[];
@@ -57,35 +94,49 @@ const parseNumberFormValue = (value: any): number | undefined => {
 export const normalizarDadosGato = (data: Partial<IGato> & Record<string, any>): Partial<IGato> => {
     const rawData = data as Record<string, any>;
     const isMissingRawValue = (value: any): boolean => value === undefined || value === null || value === "";
+    const normalizedData: Partial<IGato> & Record<string, any> = { ...data };
 
-    const idadeConvertida = parseNumberFormValue(rawData.idade);
-    const castradoConvertido = parseBooleanFormValue(rawData.castrado);
-    const vacinadoConvertido = parseBooleanFormValue(rawData.vacinado);
-    const vermifugadoConvertido = parseBooleanFormValue(rawData.vermifugado);
-    const necessidadesConvertido = parseBooleanFormValue(rawData.necessidadesEspeciais);
-
-    return {
-        ...data,
-        idade: idadeConvertida !== undefined || isMissingRawValue(rawData.idade)
+    if (hasOwnField(rawData, "idade")) {
+        const idadeConvertida = parseNumberFormValue(rawData.idade);
+        normalizedData.idade = idadeConvertida !== undefined || isMissingRawValue(rawData.idade)
             ? idadeConvertida
-            : rawData.idade,
-        castrado: castradoConvertido !== undefined || isMissingRawValue(rawData.castrado)
-            ? castradoConvertido
-            : rawData.castrado,
-        vacinado: vacinadoConvertido !== undefined || isMissingRawValue(rawData.vacinado)
-            ? vacinadoConvertido
-            : rawData.vacinado,
-        vermifugado: vermifugadoConvertido !== undefined || isMissingRawValue(rawData.vermifugado)
-            ? vermifugadoConvertido
-            : rawData.vermifugado,
-        necessidadesEspeciais: necessidadesConvertido !== undefined || isMissingRawValue(rawData.necessidadesEspeciais)
-            ? necessidadesConvertido
-            : rawData.necessidadesEspeciais,
-        personalidade: normalizarPersonalidades(data.personalidade),
-    };
-};
+            : rawData.idade;
+    }
 
-const isEmptyValue = (value: unknown): boolean => value === undefined || value === null || value === "";
+    if (hasOwnField(rawData, "castrado")) {
+        const castradoConvertido = parseBooleanFormValue(rawData.castrado);
+        normalizedData.castrado = castradoConvertido !== undefined || isMissingRawValue(rawData.castrado)
+            ? castradoConvertido
+            : rawData.castrado;
+    }
+
+    if (hasOwnField(rawData, "vacinado")) {
+        const vacinadoConvertido = parseBooleanFormValue(rawData.vacinado);
+        normalizedData.vacinado = vacinadoConvertido !== undefined || isMissingRawValue(rawData.vacinado)
+            ? vacinadoConvertido
+            : rawData.vacinado;
+    }
+
+    if (hasOwnField(rawData, "vermifugado")) {
+        const vermifugadoConvertido = parseBooleanFormValue(rawData.vermifugado);
+        normalizedData.vermifugado = vermifugadoConvertido !== undefined || isMissingRawValue(rawData.vermifugado)
+            ? vermifugadoConvertido
+            : rawData.vermifugado;
+    }
+
+    if (hasOwnField(rawData, "necessidadesEspeciais")) {
+        const necessidadesConvertido = parseBooleanFormValue(rawData.necessidadesEspeciais);
+        normalizedData.necessidadesEspeciais = necessidadesConvertido !== undefined || isMissingRawValue(rawData.necessidadesEspeciais)
+            ? necessidadesConvertido
+            : rawData.necessidadesEspeciais;
+    }
+
+    if (hasOwnField(rawData, "personalidade")) {
+        normalizedData.personalidade = normalizarPersonalidades(rawData.personalidade);
+    }
+
+    return normalizedData;
+};
 
 const parseBooleanQuery = (value: any): boolean | undefined => {
     if (typeof value === "boolean") return value;
@@ -200,44 +251,115 @@ export const validarParametros = async (data: IGato): Promise<any> => {
     }
 
     // Validação de Enums referenciando CatTypes
-    if (!CatTypes.SEXOTYPES.includes(data.sexo)) {
-        throw new InvalidEnumError(`Sexo inválido '${data.sexo}'. Valores permitidos: ${CatTypes.SEXOTYPES.join(", ")}.`);
-    }
-
-    if (!CatTypes.CORTYPES.includes(data.cor)) {
-        throw new InvalidEnumError(`Cor inválida '${data.cor}'. Valores permitidos: ${CatTypes.CORTYPES.join(", ")}.`);
-    }
-
-    if (!CatTypes.FIVFELVTYPES.includes(data.fivFelv)) {
-        throw new InvalidEnumError(`FIV/FeLV inválido '${data.fivFelv}'. Valores permitidos: ${CatTypes.FIVFELVTYPES.join(", ")}.`);
-    }
-
-    if (!CatTypes.STATUSTYPES.includes(data.status)) {
-        throw new InvalidEnumError(`Status inválido '${data.status}'. Valores permitidos: ${CatTypes.STATUSTYPES.join(", ")}.`);
-    }
+    validateEnumField(data.sexo, "Sexo", CatTypes.SEXOTYPES);
+    validateEnumField(data.cor, "Cor", CatTypes.CORTYPES);
+    validateEnumField(data.fivFelv, "FIV/FeLV", CatTypes.FIVFELVTYPES);
+    validateEnumField(data.status, "Status", CatTypes.STATUSTYPES);
 
     const personalidadesInvalidas = (data.personalidade || []).filter(p => !CatTypes.PERSONALIDADETYPES.includes(p as CatTypes.PersonalidadeType));
     if (personalidadesInvalidas.length > 0) {
         throw new InvalidEnumError(`Personalidade(s) inválida(s): ${personalidadesInvalidas.join(", ")}. Valores permitidos: ${CatTypes.PERSONALIDADETYPES.join(", ")}.`);
     }
 
-        // Validação de Número
-    if (data.idade !== undefined) {
-        if (typeof data.idade !== 'number' || !Number.isInteger(data.idade) || data.idade < 0) {
-            throw new MissingParamsError("A idade deve ser um número válido.");
+    validateIntegerField(data.idade, "idade");
+    validateBooleanField(data.castrado, "castrado");
+    validateBooleanField(data.vacinado, "vacinado");
+    validateBooleanField(data.vermifugado, "vermifugado");
+    validateBooleanField(data.necessidadesEspeciais, "necessidadesEspeciais");
+};
+
+const ALLOWED_PATCH_FIELDS = new Set([
+    "nome",
+    "idade",
+    "sexo",
+    "cor",
+    "castrado",
+    "vacinado",
+    "vermifugado",
+    "fivFelv",
+    "personalidade",
+    "necessidadesEspeciais",
+    "descricaoBio",
+    "status",
+    "imagemUrl",
+]);
+
+export const validatePatchParams = async (data: Partial<IGato>): Promise<Partial<IGato>> => {
+    const payload = data as Record<string, any>;
+    const keys = Object.keys(payload);
+
+    if (keys.length === 0) {
+        throw new MissingParamsError("Nenhum dado foi fornecido para atualização.");
+    }
+
+    for (const key of keys) {
+        if (!ALLOWED_PATCH_FIELDS.has(key)) {
+            throw new MissingParamsError(`O campo '${key}' não é permitido na atualização.`);
         }
     }
-    // Validação de Booleanos (Apenas garantindo o tipo)
-    if (data.castrado !== undefined && typeof data.castrado !== "boolean") {
-        throw new MissingParamsError("O campo 'castrado' deve ser um booleano (true ou false).");
+
+    if (hasOwnField(payload, "nome")) {
+        payload.nome = validateStringField(payload.nome, "nome");
     }
-    if (data.vacinado !== undefined && typeof data.vacinado !== "boolean") {
-        throw new MissingParamsError("O campo 'vacinado' deve ser um booleano (true ou false).");
+
+    if (hasOwnField(payload, "descricaoBio")) {
+        payload.descricaoBio = validateStringField(payload.descricaoBio, "descricaoBio");
     }
-    if (data.vermifugado !== undefined && typeof data.vermifugado !== "boolean") {
-        throw new MissingParamsError("O campo 'vermifugado' deve ser um booleano (true ou false).");
+
+    if (hasOwnField(payload, "imagemUrl")) {
+        payload.imagemUrl = validateStringField(payload.imagemUrl, "imagemUrl");
     }
-    if (data.necessidadesEspeciais !== undefined && typeof data.necessidadesEspeciais !== "boolean") {
-        throw new MissingParamsError("O campo 'necessidadesEspeciais' deve ser um booleano (true ou false).");
+
+    if (hasOwnField(payload, "idade")) {
+        payload.idade = validateIntegerField(payload.idade, "idade");
     }
+
+    if (hasOwnField(payload, "castrado")) {
+        payload.castrado = validateBooleanField(payload.castrado, "castrado");
+    }
+
+    if (hasOwnField(payload, "vacinado")) {
+        payload.vacinado = validateBooleanField(payload.vacinado, "vacinado");
+    }
+
+    if (hasOwnField(payload, "vermifugado")) {
+        payload.vermifugado = validateBooleanField(payload.vermifugado, "vermifugado");
+    }
+
+    if (hasOwnField(payload, "necessidadesEspeciais")) {
+        payload.necessidadesEspeciais = validateBooleanField(payload.necessidadesEspeciais, "necessidadesEspeciais");
+    }
+
+    if (hasOwnField(payload, "sexo")) {
+        payload.sexo = validateEnumField(payload.sexo, "Sexo", CatTypes.SEXOTYPES);
+    }
+
+    if (hasOwnField(payload, "cor")) {
+        payload.cor = validateEnumField(payload.cor, "Cor", CatTypes.CORTYPES);
+    }
+
+    if (hasOwnField(payload, "fivFelv")) {
+        payload.fivFelv = validateEnumField(payload.fivFelv, "FIV/FeLV", CatTypes.FIVFELVTYPES);
+    }
+
+    if (hasOwnField(payload, "status")) {
+        payload.status = validateEnumField(payload.status, "Status", CatTypes.STATUSTYPES);
+    }
+
+    if (hasOwnField(payload, "personalidade")) {
+        const personalidades = normalizarPersonalidades(payload.personalidade);
+
+        if (personalidades.length === 0) {
+            throw new MissingParamsError("O campo 'personalidade' não pode estar vazio.");
+        }
+
+        const personalidadesInvalidas = personalidades.filter((p) => !CatTypes.PERSONALIDADETYPES.includes(p as CatTypes.PersonalidadeType));
+        if (personalidadesInvalidas.length > 0) {
+            throw new InvalidEnumError(`Personalidade(s) inválida(s): ${personalidadesInvalidas.join(", ")}. Valores permitidos: ${CatTypes.PERSONALIDADETYPES.join(", ")}.`);
+        }
+
+        payload.personalidade = personalidades;
+    }
+
+    return payload as Partial<IGato>;
 };

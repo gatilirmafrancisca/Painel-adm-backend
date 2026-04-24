@@ -4,7 +4,7 @@ import { Types, Document } from "mongoose";
 import { Request } from "express";
 import { cloudinary } from '../database/configupload.js';
 import streamifier from 'streamifier';
-import { montarFiltrosGato, normalizarDadosGato, normalizarPersonalidades, validarParametros } from "../utils/gatovalidar.js";
+import { montarFiltrosGato, normalizarDadosGato, normalizarPersonalidades, validarParametros, validatePatchParams } from "../utils/gatovalidar.js";
 
 const localizarGato = async(id?: string, filters: any = {}) : Promise<(IGato & Document)[]> => {
     
@@ -96,5 +96,62 @@ export const listarGatosService = async (req: any): Promise<ResponseType> => {
         console.error("listarGatosService error:", error);
         throw error;
 
+    }
+}
+
+export const patchGatoService = async (id: string, data: Partial<IGato>, req: Request): Promise<ResponseType> => {
+    try {
+        const gato = await localizarGato(id, {});
+
+        if (gato.length === 0) {
+            return { status: 404, message: "Gato não encontrado." };
+        }
+
+        const file = req.file;
+        const hasBodyData = !!data && Object.keys(data).length > 0;
+
+        if (!hasBodyData && !file) {
+            return { status: 400, message: "Nenhum dado fornecido para atualização." };
+        }
+
+        const dadosNormalizados = normalizarDadosGato(data as Partial<IGato> & Record<string, any>);
+        const validData = hasBodyData
+            ? await validatePatchParams(dadosNormalizados)
+            : {} as Partial<IGato>;
+
+        if (file) {
+            if (!file.buffer || file.buffer.length === 0) {
+                return { status: 400, message: "A imagem enviada está vazia." };
+            }
+
+            const uploadResult = await uploadFromBuffer(file);
+            validData.imagemUrl = uploadResult.secure_url;
+        }
+
+        Object.assign(gato[0], validData);
+        await gato[0].save();
+
+        return { status: 200, message: "Gato atualizado com sucesso.", data: gato[0] };
+    } catch (error: any) {
+        console.error("patchGatoService error:", error);
+        throw error;
+    }
+};
+
+export const deletarGatoService = async(id: string) : Promise<ResponseType> => {
+    try {
+        const gato = await localizarGato(id, {});
+
+        if (gato.length === 0) {
+            return {status: 404, message: "Gato não encontrado."};
+        }
+
+        await gato[0].deleteOne()
+
+        return {status: 200, message: "Gato deletado com sucesso."};
+
+    } catch (error: any) {
+        console.error("deletarGatoService error:", error);
+        throw error;
     }
 }
